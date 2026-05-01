@@ -8,7 +8,8 @@ export default defineConfig(({mode}) => {
   return {
     plugins: [react(), tailwindcss()],
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.OLLAMA_API_URL': JSON.stringify(env.OLLAMA_API_URL || 'http://localhost:11434/api/generate'),
+      'process.env.OLLAMA_MODEL': JSON.stringify(env.OLLAMA_MODEL || 'gemma3:latest'),
     },
     resolve: {
       alias: {
