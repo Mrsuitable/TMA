@@ -373,8 +373,8 @@ export default function App() {
                       animate={{ opacity: 1, scale: 1 }}
                       className="bg-[#F5F5F5] p-6 rounded-3xl border border-[#E5E5E5]"
                     >
-                      <p className="text-[#171717] font-medium italic leading-relaxed">
-                        "{insight}"
+                      <p className="text-[#171717] font-medium leading-relaxed whitespace-pre-line">
+                        {insight}
                       </p>
                     </motion.div>
                   )}

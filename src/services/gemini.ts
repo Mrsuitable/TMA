@@ -8,6 +8,12 @@ interface OllamaGenerateResponse {
   error?: string;
 }
 
+interface ObstacleInsightResponse {
+  why?: string;
+  nextStep?: string;
+  microAction?: string;
+}
+
 async function generateWithOllama(prompt: string, format?: "json"): Promise<string> {
   const response = await fetch(OLLAMA_API_URL, {
     method: "POST",
@@ -44,6 +50,38 @@ function parseOptimizationResponse(text: string): AIOptimization {
     efficiencyScore: typeof parsed.efficiencyScore === "number" ? Math.min(100, Math.max(0, parsed.efficiencyScore)) : 0,
     bottlenecks: Array.isArray(parsed.bottlenecks) ? parsed.bottlenecks.map(String) : [],
   };
+}
+
+function cleanInsightPart(value: unknown, fallback: string): string {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const cleaned = value
+    .trim()
+    .replace(/^[-*"'\s]+/, "")
+    .replace(/[*"'\s]+$/, "");
+
+  return cleaned || fallback;
+}
+
+function parseObstacleInsight(text: string, taskTitle: string): string {
+  const parsed = JSON.parse(text) as ObstacleInsightResponse;
+
+  const why = cleanInsightPart(
+    parsed.why,
+    `The block is connected to how "${taskTitle}" feels right now, not a lack of effort.`
+  );
+  const nextStep = cleanInsightPart(
+    parsed.nextStep,
+    "Make the task smaller before trying to finish the whole thing."
+  );
+  const microAction = cleanInsightPart(
+    parsed.microAction,
+    "Open the task and do the first two-minute action."
+  );
+
+  return `Why: ${why}\nNext: ${nextStep}\nStart now: ${microAction}`;
 }
 
 export async function optimizeSchedule(tasks: Task[]): Promise<AIOptimization> {
@@ -84,15 +122,31 @@ Return only valid JSON with this exact structure and no markdown:
 
 export async function analyzeObstacles(task: Task, reason: string): Promise<string> {
   const prompt = `
-The user failed to complete the task "${task.title}" (${task.startTime}-${task.endTime}).
-Their reason: "${reason}".
-Provide a concise, encouraging, psychological insight into why this happened and how to overcome it next time.
-Keep it under 3 sentences.
+You are a practical productivity coach, not a motivational quote bot.
+
+Task: "${task.title}" (${task.startTime}-${task.endTime})
+User's reason for getting stuck: "${reason}"
+
+Give a grounded diagnosis for this exact task and reason.
+
+Rules:
+- Do not write quotes, slogans, affirmations, or generic life advice.
+- Do not say "you've got this", "believe in yourself", or similar filler.
+- Mention the actual task or the user's stated reason.
+- Make the advice concrete enough to do immediately.
+- Keep each field under 22 words.
+
+Return only valid JSON with this exact structure:
+{
+  "why": "specific reason this task felt hard",
+  "nextStep": "one practical adjustment for next time",
+  "microAction": "one action they can do in 2 minutes"
+}
 `;
 
   try {
-    const text = await generateWithOllama(prompt);
-    return text || "Keep pushing forward!";
+    const text = await generateWithOllama(prompt, "json");
+    return parseObstacleInsight(text, task.title);
   } catch (error) {
     console.error("Ollama insight failed:", error);
     return "Don't be too hard on yourself. Make sure Ollama is running, then try again.";
